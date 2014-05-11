@@ -1,0 +1,22 @@
+{
+  "name": "IRC",
+  "version": "0.0.0",
+  "description": "IRC client built with node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/Sammons/IRC.git"
+  },
+  "keywords": [
+    "IRC"
+  ],
+  "author": "Ben Sammons, Ryan Endacott, Nate Thompson, Joe Loser",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Sammons/IRC/issues"
+  },
+  "homepage": "https://github.com/Sammons/IRC"
+}
