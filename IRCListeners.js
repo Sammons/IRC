@@ -1,18 +1,48 @@
 
-// this is initalized when this file is included
-// so that client is put into scope for all the listeners
-var client;
+exports.GetListeners = function(client) {
+	var log = client.logger;
 
-var onconnection = function() {}
-var ondata = function(data) {}
-var onend = function() {}
-var onclose = function(){ }
-var onerror = function() {}
+	var onconnect = function() {
+		log(1,'reconnected');
+		client.identify();
+	}
+	var buffer = '';
+	var ondata = function(chunk) {
+		buffer += chunk;
+		// RFC spec says carriage returns are the thing that counts
+		// to delimit messages 
+		var messages = buffer.split('\r\n');
+		// this ensures an incomplete chunk is ready for the rest
+		// unless it is the last line, in which case this empties the messages
+		buffer = messages.pop();
 
-exports.GetListeners = function(Client) {
-	client = Client;
+		try{
+			for(var i in messages) {
+				log(0,messages[i]);
+				//as seen in IRCActions
+				client.recieveRawMessage(messages[i]); 
+			}
+
+		} catch(e) {
+			log(0,"Error recieving raw message",e,messages);
+		}
+	}
+	var onend = function() {log(0,"Connection ended by server (or something else)")}
+	var onclose = function(){
+		log(1,"disconnected");		
+		//as seen in IRCActions
+		try{
+			client.connect();
+		} catch (e) {
+			log(0,"Error with client's attempt to reconnect",e);
+		}
+	}
+	var onerror = function(exception) {
+		log(0,"Connection facechecked a bush", exception)
+	}
+	
 	return {
-	 "connection":onconnection
+	 "connect"   :onconnect
 	,"data"      :ondata
 	,"end"       :onend
 	,"close"     :onclose
