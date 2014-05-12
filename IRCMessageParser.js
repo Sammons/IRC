@@ -13,19 +13,28 @@ exports.parse = function(raw, strip_colors, cb) {
         raw_message = raw_message.replace(color_regexp, "");
     }
     var tokens = raw.split(/\s/g);
-    msg.server = tokens[0].trim();
-    msg.command = tokens[1].trim();
+    
+    //sometimes there is no server in the command 
+    if (codes[tokens[0]]) {
+        msg.server  = tokens[1];
+        msg.command = tokens[0];
+    } else {
+        msg.server  = tokens[0].trim();
+        msg.command = tokens[1].trim();        
+    }
 
-
-    var commandObj = codes[msg.command]; 
+    var commandObj = codes[msg.command];
+    
     if (commandObj){
         tokens[0] = ''; tokens[1] = '';
         var rest_of_msg = tokens.join(' ');
+        commandObj.messageObj = msg;
         commandObj.action(client,rest_of_msg);
         client.trigger(msg.command,raw);
         if (cb) cb();
     } else {
-        throw('unsupported command'+msg.command);
+        console.log(msg);
+        throw('unsupported command',msg);
     }
 }
 
