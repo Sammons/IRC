@@ -1,6 +1,35 @@
 var codes = require('./IRCCodes.js');
 
-exports.parse = function(raw_message, strip_colors, cb) {
+exports.parse = function(raw, strip_colors, cb) {
+    var client = this;
+
+    if (typeof(strip_colors) == "function") cb = strip_colors;
+    else strip_colors = strip_colors || false;
+
+    var msg = {};
+
+    var color_regexp = /[\x02\x1f\x16\x0f]|\x03\d{0,2}(?:,\d{0,2})?/g
+    if (strip_colors) {
+        raw_message = raw_message.replace(color_regexp, "");
+    }
+    var tokens = raw.split(/\s/g);
+    msg.server = tokens[0].trim();
+    msg.command = tokens[1].trim();
+
+
+    var commandObj = codes[msg.command]; 
+    if (commandObj){
+        tokens[0] = ''; tokens[1] = '';
+        var rest_of_msg = tokens.join(' ');
+        commandObj.action(client,rest_of_msg);
+        client.trigger(msg.command,raw);
+        if (cb) cb();
+    } else {
+        throw('unsupported command'+msg.command);
+    }
+}
+
+var alternate = function(raw_message, strip_colors, cb) {
 	if (typeof(strip_colors) == "function") cb = strip_colors;
 	else strip_colors = strip_colors || false;
 
@@ -35,7 +64,8 @@ exports.parse = function(raw_message, strip_colors, cb) {
         }
     }
 
-    var command_in_message = raw_message.match(command_regexp)[1];
+    var command_in_message = raw_message.match(command_regexp)[1].trim();
+    console.log(command_in_message)
     raw_message = raw_message.replace(command_if_end_regexp, '');
     
     //lookup information correlated to this command
@@ -43,9 +73,9 @@ exports.parse = function(raw_message, strip_colors, cb) {
     if (codes[command_in_message]) {
         message.command     = codes[command_in_message].name;
         message.commandType = codes[command_in_message].type;
+        message.action      = codes[command_in_message].action;
     } else {
-    	message.command     = command_in_message;
-    	message.commandType = 'normal';
+    	throw('unsupported command');
     }
 
     message.params = [];

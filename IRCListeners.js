@@ -18,9 +18,8 @@ exports.GetListeners = function(client) {
 
 		try{
 			for(var i in messages) {
-				log(0,messages[i]);
 				//as seen in IRCActions
-				client.recieveRawMessage(messages[i]); 
+				client.recieveRawMessage(messages[i]);
 			}
 
 		} catch(e) {

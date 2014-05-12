@@ -5,7 +5,8 @@ exports.GetOptions = function(custom_options) {
 		o.port 	 = 6667
 		o.secure = false
 		o.debug  = true
-
+		o.nick   = 'butterslopt'
+		o.user   = 'butter'
 		//RFC defaults
 	    o.features_supported = {
 	        channel: {
