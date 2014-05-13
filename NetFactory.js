@@ -25,8 +25,7 @@ var create_new_conn = function(cb) {
 	for (var i in client.options) net_options[i] = client.options[i];
 	var conn = client.connection = net.connect(net_options,function(connection) {
 		setupListeners(client);
-		client.connection = conn;
-		if (cb) cb(conn);
+		if (cb) cb();
 	});
 }
 

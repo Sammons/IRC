@@ -23,7 +23,7 @@ exports.GetListeners = function(client) {
 			}
 
 		} catch(e) {
-			log(0,"Error recieving raw message",e,messages);
+			log("Error recieving raw message",e,messages);
 		}
 	}
 	var onend = function() {log(0,"Connection ended by server (or something else)")}

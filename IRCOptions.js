@@ -4,9 +4,12 @@ exports.GetOptions = function(custom_options) {
 		o.host   = 'chat.freenode.org';
 		o.port 	 = 6667
 		o.secure = false
-		o.debug  = true
+		o.debug  = 0
 		o.nick   = 'butterslopt'
 		o.user   = 'butter'
+		o.usermode = 8
+		o.realname = "ben"
+		o.message_timeout = 5000
 		//RFC defaults
 	    o.features_supported = {
 	        channel: {

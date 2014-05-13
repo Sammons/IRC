@@ -1,3 +1,5 @@
 var irc = require('./index.js');
 
-var client = new irc.client();
+var client = new irc.client({},function() {
+	
+});
