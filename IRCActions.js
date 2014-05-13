@@ -18,7 +18,7 @@ exports.inject = function(client) {
 		if (text.indexOf('\r\n')<0) text = text+'\r\n';
 
 		//pew pew
-		client.connection.write(text);
+		client.connection.send(text);
 		log(0,"sent msg:"+text.replace('\r\n',''));
 	}
 	
@@ -37,8 +37,8 @@ exports.inject = function(client) {
 		// log(0, "attempting to tell server who I am");
 		client.issueCommand("NICK")
 		client.issueCommand("USER")
-		// client.write('JOIN','#mizzouacm')
-
+		client.write('JOIN','#mizzouacm')
+		client.issueCommand("PRIVMSG","#mizzouacm","helloworld")
 	}
 
 	client.connect = function(onReady) {
@@ -49,10 +49,16 @@ exports.inject = function(client) {
 			log(1, "connecting using net");
 			client.openNetConn(function() {identify(onReady)});
 		}
-
-
 	}
-	
+	client.close = function(onclose) {
+		client.issueCommand("PRIVMSG", "#mizzouacm", "goodbye");
+		client.connection.destroy();
+	}
+	process.on('SIGINT',function(){
+		client.close();
+		process.kill();
+	});
+
 	client.parse = require('./IRCMessageParser.js').parse;
 	client.recieveRawMessage = function(raw_message) {
 		var messageObj = client.parse(raw_message);

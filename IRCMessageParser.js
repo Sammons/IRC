@@ -3,7 +3,6 @@ exports.parse = function(raw,cb) {
     var commands = client.commands;
     var msg = {};
 
-
     //TODO make this optional
     var color_regexp = /[\x02\x1f\x16\x0f]|\x03\d{0,2}(?:,\d{0,2})?/g
     raw = raw.replace(color_regexp, "");

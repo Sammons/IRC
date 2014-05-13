@@ -1,6 +1,19 @@
 var waiting = {};
 var counter = 0;//make waiting messages unique
 
+function wait(command,delay,finishedcb){
+   //show that we are waiting
+   counter++;
+   var label = command+"-"+counter
+   waiting[label] = commands[command];
+   waiting[label]
+   //stop waiting for response
+   setTimeout(function(){
+      delete waiting[label];
+      if (finishedcb) {finishedcb()};
+   },delay) 
+};
+
 var start_motd = function(client,msg) 
    {client.motd = '';}
 
@@ -25,7 +38,7 @@ var ping_recieved = function(client,msg) {
    }
 }
 
-var prvmsg = function(client,msg){
+var privmsg_recieved = function(client,msg){
    var from = this.tokens[0].replace(/\!.*|\:/g,'');
    var to   = this.tokens[2].trim();
    var what = msg.replace(/.*\s.*\s.*\s:/g,''); 
@@ -35,24 +48,40 @@ var register = function(client, msg) {
 
 } 
 var err_notregistered = function(client, msg) {
+   if (client.options.pass) client.issueCommand('PASS');
    client.issueCommand('NICK');
    client.issueCommand('USER');
 }
-
 
 var err_needmoreparams = function(client, msg) {
    for (var i in waiting) {
       if (waiting[i].server_responses.indexOf("ERR_NEEDMOREPARAMS") >= 0) {
          waiting[i].error(client,msg,"ERR_NEEDMOREPARAMS")
+         delete waiting[i];
          return;
       }
    }
 }
 
 var rpl_yourhost = function(client, msg) {}
-
-var err_erroneusnickname;
-var err_nicknameinuse;
+function trigger_waiting_msg(client, msg, err) {
+   for (var i in waiting) {
+      if (waiting[i].server_responses.indexOf(err) >= 0) {
+         waiting[i].error(client,msg,err);
+         delete waiting[i];
+         return;
+      }
+   }
+}
+var err_erroneusnickname = function(client, msg) {
+   trigger_waiting_msg(client, msg,'ERR_ERRONEUSNICKNAME');
+};
+var err_nicknameinuse = function(client, msg) {
+   trigger_waiting_msg(client, msg, "ERR_NICKNAMEINUSE");
+};
+var err_nonickgiven = function(client,msg) {
+   trigger_waiting_msg(client, msg, "ERR_NONICKNAMEGIVEN");
+}
 var err_alreadyregistered;
 
 var non = function(client,msg) {
@@ -65,6 +94,7 @@ var non_send = function() { client.logger(0,"UNSUPPORTED COMMAND");}
 
 var nick = function() {
    var client = this;
+   wait("NICK",this.options.message_timeout);
    client.write("NICK",client.options.nick);
 }
 var pong = function() {
@@ -75,34 +105,74 @@ var user = function() {
    var client = this;
    var o = client.options;
    
-   //show that we are waiting
-   counter++;
-   var label = "USER-"+counter
-   waiting[label] = commands.USER;
-   //stop waiting for response
-   setTimeout(function(){delete waiting[label]},o.message_timeout) 
+   wait("USER",o.message_timeout);
    
    client.write(
       "USER"
       ,o.nick
       ,o.usermode
-      ,o.user_unused||'*'
+      ,'*'
       ,':'+o.realname
       );
+}
+
+var oper = function() {
+   var client = this;
+   wait("OPER",client.options.message_timeout);
+   client.write("OPER", client.options.pass);
+}
+var privmsg = function(target,text) {
+   var client = this;
+   wait("PRIVMSG",client.options.message_timeout);
+   client.write("PRIVMSG", target ,':'+text);
+}
+var pass = function() {
+   var client = this;
+   wait("PASS",client.options.message_timeout);
+   client.write("PASS", client.options.pass);
 }
 
 
 /*********************END SENDERS*******************************************/
 
 /*********************BEGIN ERROR HANDLING**********************************/
+var privmsg_err = function(client, msg, error) {
+   switch (error) {
+      case "ERR_NORECIPIENT": 
+      case "ERR_CANNOTSENDTOCHAN":
+      case "ERR_WILDTOPLEVEL":
+      case "ERR_NOSUCHNICK":
+      case "ERR_NOTEXTTOSEND":
+      case "ERR_NOTOPLEVEL":
+      case "ERR_TOOMANYTARGETS":
+      default:
+         client.logger(0,"UNSUPPORTED PRIVMSG ERR");
+   }
+}
+
 var user_err = function(client, msg, error) {
    if (error == "ERR_NEEDMOREPARAMS") {
       client.logger(2,"Are you sure your ircconfig file is correct?\n"+
          "The client just recieved an error saying we are missing some inputs for a command\n"+
          "Parameters for command 'USER': <user> <mode> <unused> <realname>");
-   } else {
+   } else if (error == "ERR_ALREADYREGISTRED") {
       client.logger(0,"Oops, tried to register twice");
    }
+}
+var nick_error = function(client, msg, err) {
+   if (err == "ERR_NONICKNAMEGIVEN") {
+      client.logger(2, "The ircconfig file must be missing a nick! please put one in.");
+   } else if (err == "ERR_ERRONEUSNICKNAME") {
+      client.logger(2, "The ircconfig file contains an erroneous nick, no special chars plz and < 9 chars")
+   } else if (err == "ERR_NICKNAMEINUSE") {
+      client.logger(2, "Our nickname is taken! Please try another");
+   } else if (err == "ERR_NICKCOLLISION") {
+      client.logger(2, "Nick collision. Bad times. Server says we lose this one.");
+      client.close();
+   }
+}
+var oper_err = function(client, msg, error) {
+   throw('oper err unsupported');
 }
 /*********************END ERROR HANDLING************************************/
 
@@ -117,7 +187,8 @@ var commands = module.exports = {
          [
            "ERR_NEEDMOREPARAMS"
          , "ERR_ALREADYREGISTRED"],
-      "on_recieve":non
+      "on_recieve":non,
+      "send":pass
    },
    "NICK": {
       "name":"nick",
@@ -131,6 +202,7 @@ var commands = module.exports = {
          "ERR_RESTRICTED"
          ],
       "on_recieve":non,
+      "error":nick_error,
       "send": nick
    },
    "USER": {
@@ -151,7 +223,9 @@ var commands = module.exports = {
          , "RPL_YOUREOPER"
          , "ERR_NOOPERHOST"
          , "ERR_PASSWDMISMATCH"],
-      "on_recieve":non
+      "on_recieve":non,
+      "error":oper_err,
+      "send":oper
    },
    /*
    +-
@@ -295,7 +369,9 @@ var commands = module.exports = {
          ,"ERR_NOSUCHNICK"
          ,"RPL_AWAY"
          ],
-      "on_recieve":prvmsg
+      "on_recieve":privmsg_recieved,
+      "error":privmsg_err,
+      "send":privmsg
    },
    "NOTICE": {
       "name" : "notice",
@@ -418,6 +494,10 @@ var commands = module.exports = {
       "name":"RPL_ENDOFMOTD",
       "type":"no_reply",
       "on_recieve":end_motd
+   },
+   "431": {
+      "name":"ERR_NONICKNAMEGIVEN",
+      "on_recieve":err_nonickgiven
    },
    "432":{
       "name":"ERR_ERRONEUSNICKNAME",

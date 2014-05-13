@@ -9,6 +9,7 @@ exports.GetOptions = function(custom_options) {
 		o.user   = 'butter'
 		o.usermode = 8
 		o.realname = "ben"
+		o.password = ""
 		o.message_timeout = 5000
 		//RFC defaults
 	    o.features_supported = {
@@ -17,7 +18,7 @@ exports.GetOptions = function(custom_options) {
 	            length: 200,
 	            limit: [],
 	            modes: { a: '', b: '', c: '', d: ''},
-	            types: "&#"
+	            types: "&#"//local to server channels, and regular channels
 	        },
 	        kicklength: 0,
 	        maxlist: [],
