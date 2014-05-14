@@ -1,5 +1,3 @@
 var irc = require('./index.js');
 
-var client = new irc.client({},function() {
-	
-});
+var client = new irc.client().open();
