@@ -1,6 +1,6 @@
 var net = require('net');
 
-var client = function(custom_options) {
+var Client = function(custom_options) {
 	var client = this;
 	this.options = {
 		 timeout  : 0
@@ -23,6 +23,9 @@ var client = function(custom_options) {
 	var out = [];
 	var input = [];
 
+	/*
+	The trigger/on system
+	*/
 	var triggers = {};
 	var trigger = this.trigger = function(what, args) {
 		for (var i in triggers[what]) 
@@ -36,6 +39,12 @@ var client = function(custom_options) {
 	var unbind = this.unbind = function(what, func) {
 		triggers[what] = removeFromArray(triggers[what], func);
 	}
+
+	/*
+	Open & Close methods
+	the rest of the client functionality is
+	wrapped into the wrapper.js file
+	*/
 	var open = this.open = function() {
 		var network = require('./'+(this.options.secure ? "TLS" : "Net") + "Factory.js");
 		var conn = net.connect(this.options.port, this.options.host, function(){
@@ -60,57 +69,23 @@ var client = function(custom_options) {
 				console.log('sent::- '+str.replace(/\r|\n/g,''));
 				client.conn.write(str,client.options.encoding);
 			}
-			setTimeout(function() {identify()}, 1000);
+			setTimeout(function() {
+						client.write("USER","butterbot","8","*","Ben Sammons");
+		client.write("NICK","butterbot");client.trigger("socketconnected")}, 1000);
 		});
 	}
+// this is the set of commands which the client has been programmed to 
+// respond to, they by no means cover everything
+require('./commandprocessing.js').listen(client);
 
-	client.on("data",function(chunk){
-		var t = chunk.split(/\s/g)
-		if (t[1].trim()=="366")
-			client.trigger("366"+t[3]);
-	})
-	this.join = function(channel,key, cb) {
-		if (typeof(key) == "function") {cb = key; key = null}
-		client.write("JOIN",channel, key || '');
-		var listening = true;
-		client.on("366"+channel, function() {
-			if (listening) cb(true)
-			listening = false;
-		})
-		setTimeout(function() {
-			if (listening) {
-				listening = false;
-				cb(false);
-			}
-		},10000)
-	}
-
-	//send user + nick
-	var identify = function() {
-		client.write("PASS",client.options.pass || "");
-		client.write("USER"
-			,client.options.nick
-			,client.options.usermode
-			,"*"
-			,":"+client.options.realname);
-		client.write("NICK",client.options.nick);
-		client.join(client.options.channels[0],function (confirmed) {
-			console.log("succesfully joined?:"+confirmed);
-		})
-	};
-	require('./commandprocessing.js').listen(client);
+// this is the set of commands with which a person unfamiliar with IRC can interact
+// to control the client
+require('./wrapper.js').attachMethodsTo(client);
 }
-// client.prototype.send = function() {}
-// client.prototype.join = function() {}
-// client.prototype.leave = function() {}
-// client.prototype.close = function() {}
 
-// client.prototype.pm = function() {}
-// client.prototype.whois = function() {}
-// client.prototype.kick = function() {}
-// client.prototype.ignore = function() {}
 
-module.exports.client = client;
+
+module.exports.client = Client;
 
 /******************************/
 	//helpers//
