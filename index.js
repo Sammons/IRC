@@ -1,6 +1,6 @@
 var net = require('net');
 
-var Client = function(custom_options) {
+var Client = function(custom_options, callback) {
 	var client = this;
 	this.options = {
 		 timeout  : 0
@@ -9,17 +9,19 @@ var Client = function(custom_options) {
 		,nick     : ''
 		,realname : ''
 		,channels : []
-		,greeting : ''
-		,goodbye  : "Farewell"
 		,usermode : 8 // invisible to channels not joined
 		,port 	  : 6667 
 		,secure   : false
-		,pass     : "loading"
-		,debug    : 1
+		,pass     : ''
 		,message_timeout : 10000
 		,command_interval : 700//good for freenode usually
 	};
 	upsert(this.options, custom_options);
+
+	/*sanity checks*/
+	if (client.options.host == '') console.log('No server specified, please use a host: "somethinghere" option');
+	if (client.options.nick == '') console.log('No nickname, please use a nick: "nicknamehere" option');
+
 	var out = [];
 	var input = [];
 
@@ -27,15 +29,31 @@ var Client = function(custom_options) {
 	The trigger/on system
 	*/
 	var triggers = {};
+	var oncetriggers = {};
+	var conditionally_once_triggers = {};
 	var trigger = this.trigger = function(what, args) {
 		for (var i in triggers[what]) 
 			triggers[what][i].apply(this,
 				Array.prototype.slice.call(arguments, 1));
+		for (var i in oncetriggers[what])
+			oncetriggers[what][i].apply(this,
+				Array.prototype.slice.call(arguments, 1));
+		for (var i in conditionally_once_triggers[what]){
+			var bool = conditionally_once_triggers[what][i].apply(this,
+				Array.prototype.slice.call(arguments, 1));
+			if (bool) conditionally_once_triggers[what].splice(i);
+		}
+		oncetriggers[what] = [];
 	}
 	var on = this.on = function(what, callback) {
-		initpush(triggers, what, callback)
+		initpush(triggers, what, callback);
 	}
-
+	var once = this.once = function(what, callback) {
+		initpush(oncetriggers, what, callback);
+	}
+	var conditionally_once = this.conditionally_once = function(what, callback) {
+		initpush(conditionally_once_triggers, what, callback)
+	}
 	var unbind = this.unbind = function(what, func) {
 		triggers[what] = removeFromArray(triggers[what], func);
 	}
@@ -46,46 +64,111 @@ var Client = function(custom_options) {
 	wrapped into the wrapper.js file
 	*/
 	var open = this.open = function() {
-		var network = require('./'+(this.options.secure ? "TLS" : "Net") + "Factory.js");
-		var conn = net.connect(this.options.port, this.options.host, function(){
-			conn.setTimeout(0)
-			conn.setEncoding(client.options.encoding)
-			conn.addListener("connect",function () {trigger("connect")})
-			conn.addListener("end",function () {trigger("end")})
+		try {
+			var conn = net.connect(this.options.port, this.options.host, function(){
+				conn.setTimeout(0)
+				conn.setEncoding(client.options.encoding)
+				conn.addListener("connect",function () {trigger("connect")})
+				conn.addListener("end",function () {trigger("end")})
 
-			var socketBuffer = '';
-			conn.addListener("data",function (chunk) {
-				socketBuffer += chunk;
-				var messages = socketBuffer.split('\r\n');
-				socketBuffer = messages.pop();
-				for(var i in messages) trigger("data",messages[i]);
-			})
-			conn.addListener("error",function (e) {trigger("error",e)})
-			client.conn = conn;
-			client.write = function() {
-				var str = '';
-				for (var i in arguments) str += arguments[i]+' ';
-				if (str.indexOf("\r\n")<0) str+="\r\n";
-				console.log('sent::- '+str.replace(/\r|\n/g,''));
-				client.conn.write(str,client.options.encoding);
-			}
-			setTimeout(function() {
-						client.write("USER","butterbot","8","*","Ben Sammons");
-		client.write("NICK","butterbot");client.trigger("socketconnected")}, 1000);
-		});
+				var socketBuffer = '';
+				conn.addListener("data",function (chunk) {
+					socketBuffer += chunk;
+					var messages = socketBuffer.split('\r\n');
+					socketBuffer = messages.pop();
+					for(var i in messages) trigger("data",messages[i]);
+				})
+				conn.addListener("error",function (e) {trigger("error",e)})
+				client.conn = conn;
+				client.write = function() {
+					var str = '';
+					for (var i in arguments) str += arguments[i]+' ';
+					if (str.indexOf("\r\n")<0) str+="\r\n";
+					console.log('sent::- '+str.replace(/\r|\n/g,''));
+					client.conn.write(str,client.options.encoding);
+				}
+				setTimeout(function() {
+						client.write("PASS"
+							,client.options.pass
+							);
+						client.write("USER"
+							,client.options.nick
+							,client.options.usermode
+							,"*"
+							,client.options.realname 
+							|| client.options.nick
+							);
+						client.write("NICK"
+							,client.options.nick
+							);
+						client.write("JOIN"
+							,client.options.channels.join(',')
+							);
+					}, 1000);
+				process.once("SIGINT",function(){
+					client.write("JOIN 0");//leave all channels
+					client.write("QUIT");
+					conn.destroy();
+					process.emit("SIGINT");
+				})
+			});
+		} catch(e) {
+			console.log(e);
+		}
 	}
+
 // this is the set of commands which the client has been programmed to 
 // respond to, they by no means cover everything
-require('./commandprocessing.js').listen(client);
+	client.on("data",function(message){
+		var msgObj = {};
+		
+		// this regex should pull the prefix out if there is one...
+		// but there might not be one
+		console.log(message)
+		var prefix = message.match(/^((:.*?) )?(.*)\r?\n?/);
+		prefix = prefix[1] || prefix[0];// a few messages are just a command
+		if (prefix.indexOf(':') != 0) {
+			//no prefix
+			prefix = {raw: "", user: "", nickname: "", host: ""};
+		} else {
+			//prefix: servername | ( nickname [ [ "!" user ] "@" host ] )
+			var p = {};
+			p.raw = prefix;
+			if (prefix.indexOf('@') >= 0) {
+				//there is a nick and a host
+				p.host = prefix.substring(prefix.lastIndexOf('@')+1);
+				if (prefix.indexOf('!') >= 0) {
+					//there is a user
+					p.user = prefix.substring(prefix.indexOf('!')+1, prefix.lastIndexOf('@'));
+					p.nickname = prefix.substring(1,prefix.indexOf('!'));
+				} else {
+					//there is no user
+					p.nickname = prefix.substring(1,prefix.indexOf('@'));
+				}
+			} else {
+				p.host = prefix.substring(1);
+				//just a servername
+			}
+			prefix = p;
+		}
+		// now we check for the command, regardless of prefix existing
+		var command = message.replace(prefix.raw,'').trim().match(/^(.*?) .*/)[1];
+		msgObj.prefix = prefix;
+		msgObj.command = command;
+		msgObj.raw = message;
+		// arguments are complicated, so we leave that for later
+		// console.log(msgObj.command)
+		client.trigger(command, msgObj);
+	})
 
-// this is the set of commands with which a person unfamiliar with IRC can interact
-// to control the client
-require('./wrapper.js').attachMethodsTo(client);
+	client.on("PING",function(msgObj) {
+		client.write("PONG",msgObj.raw.split(' ')[1]);
+	});
+
+	if (callback) callback(client);
 }
 
-
-
-module.exports.client = Client;
+module.exports = Client;
 
 /******************************/
 	//helpers//
