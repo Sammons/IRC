@@ -5,11 +5,11 @@ var Client = function(custom_options) {
 	this.options = {
 		 timeout  : 0
 		,encoding : 'utf8'
-		,host     : 'chat.freenode.org'
-		,nick     : 'buttertesting'
-		,realname : "Ben Sammons"
-		,channels : ['##benlife']
-		,greeting : "Hello guys"
+		,host     : ''
+		,nick     : ''
+		,realname : ''
+		,channels : []
+		,greeting : ''
 		,goodbye  : "Farewell"
 		,usermode : 8 // invisible to channels not joined
 		,port 	  : 6667 
