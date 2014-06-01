@@ -22,9 +22,6 @@ var Client = function(custom_options, callback) {
 	if (client.options.host == '') console.log('No server specified, please use a host: "somethinghere" option');
 	if (client.options.nick == '') console.log('No nickname, please use a nick: "nicknamehere" option');
 
-	var out = [];
-	var input = [];
-
 	/*
 	The trigger/on system
 	*/
@@ -69,7 +66,12 @@ var Client = function(custom_options, callback) {
 				conn.setTimeout(0)
 				conn.setEncoding(client.options.encoding)
 				conn.addListener("connect",function () {trigger("connect")})
-				conn.addListener("end",function () {trigger("end")})
+				conn.addListener("end",function () {
+					console.log('closed socket?')
+					conn.destroy();
+					open();
+					trigger("end")
+				})
 
 				var socketBuffer = '';
 				conn.addListener("data",function (chunk) {
@@ -84,7 +86,6 @@ var Client = function(custom_options, callback) {
 					var str = '';
 					for (var i in arguments) str += arguments[i]+' ';
 					if (str.indexOf("\r\n")<0) str+="\r\n";
-					console.log('sent::- '+str.replace(/\r|\n/g,''));
 					client.conn.write(str,client.options.encoding);
 				}
 				setTimeout(function() {
@@ -106,9 +107,11 @@ var Client = function(custom_options, callback) {
 							);
 					}, 1000);
 				process.once("SIGINT",function(){
+					client.trigger("quit");
 					client.write("JOIN 0");//leave all channels
 					client.write("QUIT");
 					conn.destroy();
+					console.log(" ctrl+C one more time to end");
 					process.emit("SIGINT");
 				})
 			});
@@ -124,7 +127,6 @@ var Client = function(custom_options, callback) {
 		
 		// this regex should pull the prefix out if there is one...
 		// but there might not be one
-		console.log(message)
 		var prefix = message.match(/^((:.*?) )?(.*)\r?\n?/);
 		prefix = prefix[1] || prefix[0];// a few messages are just a command
 		if (prefix.indexOf(':') != 0) {
@@ -155,13 +157,16 @@ var Client = function(custom_options, callback) {
 		var command = message.replace(prefix.raw,'').trim().match(/^(.*?) .*/)[1];
 		msgObj.prefix = prefix;
 		msgObj.command = command;
+		console.log(command)
 		msgObj.raw = message;
 		// arguments are complicated, so we leave that for later
 		// console.log(msgObj.command)
 		client.trigger(command, msgObj);
+		client.trigger("any",msgObj);
 	})
 
 	client.on("PING",function(msgObj) {
+		console.log("PONG",msgObj.raw.split(' ')[1]);
 		client.write("PONG",msgObj.raw.split(' ')[1]);
 	});
 
