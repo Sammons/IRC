@@ -80,7 +80,9 @@ var Client = function(custom_options, callback) {
 					socketBuffer = messages.pop();
 					for(var i in messages) trigger("data",messages[i]);
 				})
-				conn.addListener("error",function (e) {trigger("error",e)})
+				conn.addListener("error",function (e) {
+					console.log(e);
+					trigger("error",e)})
 				client.conn = conn;
 				client.write = function() {
 					var str = '';
@@ -123,6 +125,7 @@ var Client = function(custom_options, callback) {
 // this is the set of commands which the client has been programmed to 
 // respond to, they by no means cover everything
 	client.on("data",function(message){
+		console.log(message)
 		var msgObj = {};
 		
 		// this regex should pull the prefix out if there is one...
@@ -157,7 +160,6 @@ var Client = function(custom_options, callback) {
 		var command = message.replace(prefix.raw,'').trim().match(/^(.*?) .*/)[1];
 		msgObj.prefix = prefix;
 		msgObj.command = command;
-		console.log(command)
 		msgObj.raw = message;
 		// arguments are complicated, so we leave that for later
 		// console.log(msgObj.command)
@@ -165,9 +167,12 @@ var Client = function(custom_options, callback) {
 		client.trigger("any",msgObj);
 	})
 
-	client.on("PING",function(msgObj) {
+	client.on("PING",function(msgObj,noRetrigger) {
 		console.log("PONG",msgObj.raw.split(' ')[1]);
 		client.write("PONG",msgObj.raw.split(' ')[1]);
+		if (!(noRetrigger===true)) setTimeout(function() {
+			client.trigger("PING",msgObj,true);
+		},1000)
 	});
 
 	if (callback) callback(client);
