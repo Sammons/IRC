@@ -1,13 +1,5 @@
 IRC
 ===
 
-Usage, using Freenode
 
-var irc_client = require('irc');
-
-var client = new irc_client({
-	host: "chat.freenode.net"
-	nick: "some_unregistered_nick"
-});
-
-client.open();
+IRC is a node.js based IRC client designed to act as a core for irc bots.
