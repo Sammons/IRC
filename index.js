@@ -68,8 +68,9 @@ var Client = function(custom_options, callback) {
 			var conn = net.connect(this.options.port, this.options.host, function(){
 				conn.setTimeout(0)
 				conn.setEncoding(client.options.encoding)
-				conn.addListener("connect",function () {trigger("connect")})
-				conn.addListener("end",function () {trigger("end")})
+				//totally swallow these events
+				conn.addListener("connect",function () {})
+				conn.addListener("end",function () {})
 
 				var socketBuffer = '';
 				conn.addListener("data",function (chunk) {
@@ -84,7 +85,6 @@ var Client = function(custom_options, callback) {
 					var str = '';
 					for (var i in arguments) str += arguments[i]+' ';
 					if (str.indexOf("\r\n")<0) str+="\r\n";
-					console.log('sent::- '+str.replace(/\r|\n/g,''));
 					client.conn.write(str,client.options.encoding);
 				}
 				setTimeout(function() {
@@ -124,7 +124,6 @@ var Client = function(custom_options, callback) {
 		
 		// this regex should pull the prefix out if there is one...
 		// but there might not be one
-		console.log(message)
 		var prefix = message.match(/^((:.*?) )?(.*)\r?\n?/);
 		prefix = prefix[1] || prefix[0];// a few messages are just a command
 		if (prefix.indexOf(':') != 0) {
@@ -159,9 +158,11 @@ var Client = function(custom_options, callback) {
 		// arguments are complicated, so we leave that for later
 		// console.log(msgObj.command)
 		client.trigger(command, msgObj);
+		client.trigger("any", msgObj);
 	})
 
 	client.on("PING",function(msgObj) {
+		console.log('PONG '+msgObj.raw.split(' ')[1]);
 		client.write("PONG",msgObj.raw.split(' ')[1]);
 	});
 
