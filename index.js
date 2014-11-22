@@ -121,7 +121,7 @@ var Client = function(custom_options, callback) {
 // respond to, they by no means cover everything
 	client.on("data",function(message){
 		var msgObj = {};
-		console.log(message);
+		//console.log(message);
 		// this regex should pull the prefix out if there is one...
 		// but there might not be one
 		var prefix = message.match(/^((:.*?) )?(.*)\r?\n?/);
